@@ -108,3 +108,11 @@ rm -rf /usr/share/consolefonts/* 2>/dev/null || true
 rm -f /usr/lib/udev/hwdb.bin 2>/dev/null || true
 
 echo "==> 二轮精简完成"
+
+# ----- 第三轮：纯文档/缓存类，不影响功能（约 30MB） -----
+rm -rf /usr/share/perl/*/pod 2>/dev/null || true          # perldoc 正文
+rm -rf /usr/lib/python3*/test /usr/lib/python3*/__pycache__ 2>/dev/null || true
+rm -rf /usr/share/X11/xkb 2>/dev/null || true              # 无 X 桌面，xkb 数据无用
+rm -rf /usr/lib/udev/hwdb.d 2>/dev/null || true            # 已删 hwdb.bin，源文件也没必要留
+rm -rf /usr/share/doc/* /usr/share/man/* 2>/dev/null || true   # 二轮 install 后又回来的残余
+echo "==> 三轮精简完成"
