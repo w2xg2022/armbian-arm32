@@ -1,0 +1,31 @@
+From: w2xg2022 <w2xg2022@users.noreply.github.com>
+Subject: [PATCH] rockchip: dts: guard CONFIG_SYS_SPI_U_BOOT_OFFS in rockchip-u-boot.dtsi
+
+CONFIG_SYS_SPI_U_BOOT_OFFS lives in common/spl/Kconfig and only has a
+default when SPL_SPI_LOAD or SPL_SPI_SUNXI is enabled. Boards that select
+ROCKCHIP_SPI_IMAGE (i.e. every rk3288/rk3399 target in
+arch/arm/mach-rockchip/*/Kconfig) but keep SPL SPI loading disabled end up
+with the token unsubstituted, which breaks the dts build:
+
+    Lexical error: arch/arm/dts/rockchip-u-boot.dtsi:225.14-40 Unexpected 'CONFIG_SYS_SPI_U_BOOT_OFFS'
+    FATAL ERROR: Syntax error parsing input tree
+    make[2]: *** [scripts/Makefile.lib:482: arch/arm/dts/rk3288-evb.dtb] Error 1
+
+This is hit by rk3288 xt-q8l-v10 (configs/xt-q8l-v10-rk3288_defconfig), which
+does not enable SPL SPI load. Guard the property with #ifdef; when the symbol
+is defined nothing changes, and when it is not binman falls back to its
+default offset for the payload node.
+---
+diff --git a/arch/arm/dts/rockchip-u-boot.dtsi b/arch/arm/dts/rockchip-u-boot.dtsi
+--- a/arch/arm/dts/rockchip-u-boot.dtsi
++++ b/arch/arm/dts/rockchip-u-boot.dtsi
+@@ -222,7 +222,9 @@
+ 		u-boot-img {
+ #endif
+ 			/* Sync with u-boot,spl-payload-offset if present */
++#ifdef CONFIG_SYS_SPI_U_BOOT_OFFS
+ 			offset = <CONFIG_SYS_SPI_U_BOOT_OFFS>;
++#endif
+ 		};
+ 	};
+ #endif /* CONFIG_ROCKCHIP_SPI_IMAGE */
