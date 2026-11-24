@@ -22,8 +22,30 @@
 
 ## 构建
 
+在本机（host）模式构建，不拉 `ghcr.io/armbian/docker-armbian-build` 镜像：实测这条链路只有
+~170 KB/s，镜像 3 GB 起步，不划算。host 侧需要 `arm-linux-gnueabihf-` 交叉工具链、`qemu-arm-static`
+与 `binfmt`，以及一堆打包工具，一台机器装一次即可：
+
 ```bash
-./compile.sh BOARD=rk3288-digital-reflection BRANCH=current RELEASE=bookworm BUILD_MINIMAL=yes BUILD_DESKTOP=no
+sudo env ALLOW_ROOT=yes ./compile.sh requirements
+```
+
+`compile.sh` 自己会要 root（Docker 不可用时回落到 sudo），非交互 ssh 下先喂一次 sudo 密码缓存：
+
+```bash
+echo "sudo密码" | sudo -S -p "" -v      # 15 分钟内有效
+./compile.sh build BOARD=rk3288-digital-reflection BRANCH=current RELEASE=noble \
+  BUILD_MINIMAL=yes BUILD_DESKTOP=no PREFER_DOCKER=no
+```
+
+- `RELEASE=` 可用 `noble`（Ubuntu 24.04，走 ports.ubuntu.com）或 `bookworm`（Debian 12）。
+- 去掉 `BUILD_MINIMAL=yes` 就是包更多的 CLI 镜像；`BUILD_DESKTOP=yes` 首次构建会慢很多。
+- 首次构建要拉内核源码（`git.kernel.org` 的 `linux-6.18.y`）、u-boot（`v2026.04`）和 rootfs 包，
+  网速慢时常常几十分钟到一两小时；之后增量构建会复用 `cache/` 与 `output/`，中断后重跑同一条命令即可续上。
+- 想只看解析出来的配置（不编译）：
+
+```bash
+./compile.sh configdump BOARD=rk3288-digital-reflection BRANCH=current
 ```
 
 产物在 `output/images/`。板级配置已经写好 `BOOT_FDT_FILE`，生成的 `armbianEnv.txt` 里
