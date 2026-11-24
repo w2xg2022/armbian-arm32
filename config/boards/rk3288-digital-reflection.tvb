@@ -1,0 +1,18 @@
+# Rockchip RK3288 "Digital Reflection" (DR-RK3288)
+# 4x Cortex-A17, 2GB RAM, GbE (RTL8211E), HDMI, 1x USB 2.0 A (板载 hub), 5V/2.5A DC
+BOARD_NAME="Digital Reflection RK3288"
+BOARD_VENDOR="digital-reflection"
+BOARDFAMILY="rockchip"
+BOARD_MAINTAINER="w2xg2022"
+INTRODUCED="2026"
+BOOT_SOC="rk3288"
+BOOTCONFIG="xt-q8l-v10-rk3288_defconfig"
+BOOT_FDT_FILE="rk3288-digital-reflection.dtb"
+KERNEL_TARGET="current"
+PACKAGE_LIST_BOARD=""
+
+function post_family_config__uboot_config() {
+	# 本板沿用已验证可启动的 u-boot 配置：用 rockchip 原厂 ddrbin 代替
+	# u-boot TPL（原 xt-q8l-v10 板因 DDR2 无法用 TPL 初始化，此配置一并沿用）
+	UBOOT_TARGET_MAP="ROCKCHIP_TPL=$SRC/cache/sources/rkbin-tools/rk32/rk3288_ddr_400MHz_v1.08.bin;;u-boot-rockchip-with-spl.bin"
+}
