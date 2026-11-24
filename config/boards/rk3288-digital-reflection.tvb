@@ -16,3 +16,6 @@ function post_family_config__uboot_config() {
 	# u-boot TPL（原 xt-q8l-v10 板因 DDR2 无法用 TPL 初始化，此配置一并沿用）
 	UBOOT_TARGET_MAP="ROCKCHIP_TPL=$SRC/cache/sources/rkbin-tools/rk32/rk3288_ddr_400MHz_v1.08.bin;;u-boot-rockchip-with-spl.bin"
 }
+
+# 构建收尾阶段清 apt 索引（必须在 extension manager 初始化前 enable）
+enable_extension "rk3288-slim-late"
