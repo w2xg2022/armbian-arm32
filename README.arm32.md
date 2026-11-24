@@ -128,11 +128,50 @@ ps_mem -S | head -15                     # 谁还在吃内存
 
 如果确认本板是 DDR3，可以再试 `firefly-rk3288_defconfig`（TPL 路线），目前未验证。
 
+## 构建实测（2026-11-25）
+
+在 8 核 / 8GB 的 Ubuntu 24.04 虚拟机上用上面的命令跑通，全程 **48 分钟**，产出：
+
+```
+Armbian-unofficial_26.11.0-trunk_Rk3288-digital-reflection_trixie_current_6.18.65_minimal.img   1348 MiB
+```
+
+镜像内已核对：`sshd` 在、`nmtui` / `nmcli` 在、NetworkManager 启用、`/boot/dtb/rk3288-digital-reflection.dtb`
+在、`armbianEnv.txt` 里 `fdtfile=rk3288-digital-reflection.dtb`、journald 走 volatile + 16M、
+`getty@tty2..6` 与 `apt-daily*` 已 mask；`cron`/`man-db`/`git`/`vim-tiny`/`avahi`/`modemmanager`/`bluez` 均未安装。
+
+### 拉源码包被打断时怎么办
+
+从 `ghcr.io` 拉 git 浅层包（`linux-shallow-6.18.git.tar`，约 320MiB）如果网络抖，
+ORAS 会整包从头重来、反复报：
+
+```
+copy failed: stream error: stream ID 1; PROTOCOL_ERROR; received from peer
+```
+
+绕过办法：先让 `./compile.sh` 跑到报错（它会打印 blob 的 `sha256:` 和大小），然后自己用 curl 断点续传：
+
+```bash
+URL="https://ghcr.io/v2/armbian/shallow/kernel-git-shallow-6.18/blobs/sha256:<digest>"
+TOKEN=$(curl -s "https://ghcr.io/token?scope=repository:armbian/shallow/kernel-git-shallow-6.18:pull" | jq -r .token)
+curl -L --http1.1 -C - --retry-all-errors -H "Authorization: Bearer $TOKEN" -o /tmp/linux-shallow-6.18.git.tar "$URL"
+# 校验 sha256 后放进 cache，并手动展开成 "bare tree"（其实是带 .git 的普通仓库）
+mv /tmp/linux-shallow-6.18.git.tar cache/git-bundles/kernel/
+mkdir -p cache/git-bare/shallow-kernel-6.18
+tar -xf cache/git-bundles/kernel/linux-shallow-6.18.git.tar -C cache/git-bare/shallow-kernel-6.18
+touch cache/git-bare/shallow-kernel-6.18/.git/armbian-bare-tree-done
+```
+
+再跑构建时会报 `bare tree already exists`，直接跳过下载。加 `KERNEL_GIT=shallow` 可以避免默认去拉
+2.7GB 的完整 git 包（本板用主线内核，浅层树足够）。
+
 ## 已知问题 / 待验证
 
 - **低速（1.5Mbit）USB 键盘经两层 hub 后按键无反应**；全速设备（Xbox 手柄、U 盘）在同一 hub 上正常。
   属 dwc2 对低速设备周期性 split 的限制，dts 层没有可调参数；可行方向是换全速/无线键盘、或去掉第二层 hub。
 - `current` 分支以外的内核（`edge` 7.3）没有对应的 dts 补丁，暂不支持。
+- 镜像里 `/usr/share/man`、`/usr/share/doc` 还残留约 2MB：自定义脚本跑完之后框架又装了 bsp-cli 等包，
+  会带回少量文档。想彻底干净就在开机后手动删一次，或忽略（对体积影响可忽略）。
 
 ## 许可
 
