@@ -49,7 +49,7 @@ purge_if_installed \
 	avahi-daemon libnss-mdns \
 	modemmanager \
 	bluez bluez-firmware bluetooth \
-	wpa_supplicant wireless-tools iw rfkill \
+	wpasupplicant wpa_supplicant wireless-tools iw rfkill wireless-regdb \
 	man-db manpages manpages-dev info groff-base doc-base \
 	bash-completion command-not-found \
 	systemd-coredump cron vim-tiny git
