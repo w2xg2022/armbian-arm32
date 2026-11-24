@@ -34,22 +34,49 @@ sudo env ALLOW_ROOT=yes ./compile.sh requirements
 
 ```bash
 echo "sudo密码" | sudo -S -p "" -v      # 15 分钟内有效
-./compile.sh build BOARD=rk3288-digital-reflection BRANCH=current RELEASE=noble \
+./compile.sh build BOARD=rk3288-digital-reflection BRANCH=current RELEASE=trixie \
   BUILD_MINIMAL=yes BUILD_DESKTOP=no PREFER_DOCKER=no
 ```
 
-- `RELEASE=` 可用 `noble`（Ubuntu 24.04，走 ports.ubuntu.com）或 `bookworm`（Debian 12）。
-- 去掉 `BUILD_MINIMAL=yes` 就是包更多的 CLI 镜像；`BUILD_DESKTOP=yes` 首次构建会慢很多。
+- 目标组合是 **Debian 13（trixie）+ 6.18.y（`current`）+ minimal**，产物名形如
+  `Armbian-unofficial_26.x_Rk3288-digital-reflection_trixie_current_6.18.y_minimal.img`。
+- `RELEASE=` 也可用 `bookworm`（Debian 12）、`noble`（Ubuntu 24.04，走 ports.ubuntu.com）。
+- `BUILD_MINIMAL=yes` 会自动把网络栈切成 `systemd-networkd`、时间服务切成 `systemd-timesyncd`，
+  比 `NetworkManager` + `chrony` 省 15~20MB 常驻内存。
 - 首次构建要拉内核源码（`git.kernel.org` 的 `linux-6.18.y`）、u-boot（`v2026.04`）和 rootfs 包，
   网速慢时常常几十分钟到一两小时；之后增量构建会复用 `cache/` 与 `output/`，中断后重跑同一条命令即可续上。
 - 想只看解析出来的配置（不编译）：
 
 ```bash
-./compile.sh configdump BOARD=rk3288-digital-reflection BRANCH=current
+./compile.sh configdump BOARD=rk3288-digital-reflection BRANCH=current RELEASE=trixie BUILD_MINIMAL=yes
 ```
 
 产物在 `output/images/`。板级配置已经写好 `BOOT_FDT_FILE`，生成的 `armbianEnv.txt` 里
 `fdtfile=rk3288-digital-reflection.dtb`，不需要再手工替换 dtb。
+
+## 精简用户空间
+
+`userpatches/customize-image.sh` 会在 rootfs 阶段自动执行，对应《ARM32 盒子-模拟器适配笔记》§6.4
+的瘦身清单，目标是把常驻内存从 ~180MB 压到 100MB 以下：
+
+- 删掉：`avahi-daemon`/`libnss-mdns`、`modemmanager`、`bluez*`、`wpa_supplicant`/`iw`/`rfkill`/
+  `wireless-tools`（纯有线机；要接 USB 无线网卡就把这几行注释掉再加回来）、`man-db`/`manpages`/`info`/
+  `groff-base`/`doc-base`、`bash-completion`/`command-not-found`、`systemd-coredump`、`cron`、`vim-tiny`、`git`。
+- 关掉：`getty@tty2..6`、`apt-daily.timer`、`apt-daily-upgrade.timer`、`man-db.timer`。
+- `journald` 改 `Storage=volatile` + `SystemMaxUse=16M`，日志写 RAM，保护 eMMC。
+- 红线不动：`armbian-zram-config`、`armbian-ramlog`、`alsa-utils`、`u-boot-tools`、`cpufrequtils`、
+  `armbian-bsp-cli-*`、`sudo`、`systemd`。
+
+开机后在机上复核：
+
+```bash
+free -m                                  # used 目标 < 100MB（不含 cache/buffer）
+systemctl --failed                       # 应该没有 failed
+ps_mem -S | head -15                     # 谁还在吃内存
+```
+
+> 注意：瘦身只在**镜像构建时**生效，已经刷好的卡不会自动变瘦，得重刷或手动照清单处理。
+
 
 ## 硬件与 Firefly-RK3288 的差异
 
