@@ -15,8 +15,10 @@
 
 1. `config/boards/rk3288-digital-reflection.tvb`
    —— 板级配置，`BOOT_FDT_FILE="rk3288-digital-reflection.dtb"`
-2. `patch/kernel/rockchip-current/0001-arm-dts-rockchip-add-rk3288-digital-reflection.patch`
-   —— 向内核树加入 `arch/arm/boot/dts/rockchip/rk3288-digital-reflection.dts`，并在同目录 `Makefile` 里登记
+2. `patch/kernel/archive/rockchip-6.18/dt/rk3288-digital-reflection.dts`
+   —— 板卡 dts。这个目录受 `0000.patching_config.yaml` 里的 `dts-directories` 机制管理：
+   构建时框架会把 `dt/` 下的 dts 原样拷进 `arch/arm/boot/dts/rockchip/`，并自动改 Makefile，
+   所以**不需要**自己写 Makefile 补丁。
 
 ## 构建
 
