@@ -35,20 +35,25 @@ sudo env ALLOW_ROOT=yes ./compile.sh requirements
 ```bash
 echo "sudo密码" | sudo -S -p "" -v      # 15 分钟内有效
 ./compile.sh build BOARD=rk3288-digital-reflection BRANCH=current RELEASE=trixie \
-  BUILD_MINIMAL=yes BUILD_DESKTOP=no PREFER_DOCKER=no
+  BUILD_MINIMAL=yes BUILD_DESKTOP=no KERNEL_CONFIGURE=no \
+  NETWORKING_STACK=network-manager PREFER_DOCKER=no
 ```
 
 - 目标组合是 **Debian 13（trixie）+ 6.18.y（`current`）+ minimal**，产物名形如
   `Armbian-unofficial_26.x_Rk3288-digital-reflection_trixie_current_6.18.y_minimal.img`。
+- `KERNEL_CONFIGURE=no` 必给：非 tty（ssh 远程）下框架要弹内核配置菜单，没有它就报
+  `stdin is not a terminal. can't use dialog`。
+- `NETWORKING_STACK=network-manager` 是刻意覆盖：`BUILD_MINIMAL=yes` 默认会切到
+  `systemd-networkd`，那样 `nmtui` 就没了。带上这个参数才有 `NetworkManager` + `nmtui`/`nmcli`，
+  代价是常驻内存多 15~20MB；纯有线、不想要 TUI 的话去掉它最瘦。
 - `RELEASE=` 也可用 `bookworm`（Debian 12）、`noble`（Ubuntu 24.04，走 ports.ubuntu.com）。
-- `BUILD_MINIMAL=yes` 会自动把网络栈切成 `systemd-networkd`、时间服务切成 `systemd-timesyncd`，
-  比 `NetworkManager` + `chrony` 省 15~20MB 常驻内存。
 - 首次构建要拉内核源码（`git.kernel.org` 的 `linux-6.18.y`）、u-boot（`v2026.04`）和 rootfs 包，
   网速慢时常常几十分钟到一两小时；之后增量构建会复用 `cache/` 与 `output/`，中断后重跑同一条命令即可续上。
 - 想只看解析出来的配置（不编译）：
 
 ```bash
-./compile.sh configdump BOARD=rk3288-digital-reflection BRANCH=current RELEASE=trixie BUILD_MINIMAL=yes
+./compile.sh configdump BOARD=rk3288-digital-reflection BRANCH=current RELEASE=trixie \
+  BUILD_MINIMAL=yes NETWORKING_STACK=network-manager
 ```
 
 产物在 `output/images/`。板级配置已经写好 `BOOT_FDT_FILE`，生成的 `armbianEnv.txt` 里
@@ -59,9 +64,12 @@ echo "sudo密码" | sudo -S -p "" -v      # 15 分钟内有效
 `userpatches/customize-image.sh` 会在 rootfs 阶段自动执行，对应《ARM32 盒子-模拟器适配笔记》§6.4
 的瘦身清单，目标是把常驻内存从 ~180MB 压到 100MB 以下：
 
-- 删掉：`avahi-daemon`/`libnss-mdns`、`modemmanager`、`bluez*`、`wpa_supplicant`/`iw`/`rfkill`/
-  `wireless-tools`（纯有线机；要接 USB 无线网卡就把这几行注释掉再加回来）、`man-db`/`manpages`/`info`/
-  `groff-base`/`doc-base`、`bash-completion`/`command-not-found`、`systemd-coredump`、`cron`、`vim-tiny`、`git`。
+- 删掉：`avahi-daemon`/`avahi-autoipd`/`libnss-mdns`、`modemmanager`、`bluez*`、
+  `man-db`/`manpages`/`info`/`groff-base`/`doc-base`、`bash-completion`/`command-not-found`、
+  `systemd-coredump`、`cron`、`vim-tiny`、`git`。
+- 保留：`openssh-server`（`config/cli/common/main/packages` 本来就有，瘦身清单没碰）、
+  `NetworkManager` + `nmtui`/`nmcli`、无线栈（`wpasupplicant`/`iw`/`rfkill`/`wireless-regdb`，
+  方便以后插 USB 无线网卡）、`nano`、`alsa-utils`、`u-boot-tools`、`cpufrequtils`。
 - 关掉：`getty@tty2..6`、`apt-daily.timer`、`apt-daily-upgrade.timer`、`man-db.timer`。
 - `journald` 改 `Storage=volatile` + `SystemMaxUse=16M`，日志写 RAM，保护 eMMC。
 - 红线不动：`armbian-zram-config`、`armbian-ramlog`、`alsa-utils`、`u-boot-tools`、`cpufrequtils`、

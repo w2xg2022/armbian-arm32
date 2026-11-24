@@ -38,18 +38,19 @@ echo "==> 精简用户空间：${RELEASE} / ${BOARD} / ${LINUXFAMILY}"
 #   avahi/libnss-mdns      mDNS 局域网发现，模拟器机不需要
 #   modemmanager           3G/4G 数据机管理，盒子没有
 #   bluez/bluez-firmware   没有蓝牙
-#   wpa_supplicant/iw/rfkill/wireless-tools  纯有线机；要走 WiFi 就把这几行注释掉
 #   man-db/manpages/info/groff-base/doc-base 文档系统
 #   bash-completion/command-not-found        shell 便利功能
 #   systemd-coredump       崩溃转储
 #   cron                   没有排程任务
 #   vim-tiny               只留 nano
 #   git                    编译在 x86 上做，机上不需要
+#
+# 刻意“不删”无线栈（wpasupplicant / iw / rfkill / wireless-regdb）：
+# 镜像用的是 NetworkManager + nmtui，插个 USB 无线网卡就能在 nmtui 里直接连，省这几 MB 不值得。
 purge_if_installed \
-	avahi-daemon libnss-mdns \
+	avahi-daemon libnss-mdns avahi-autoipd \
 	modemmanager \
 	bluez bluez-firmware bluetooth \
-	wpasupplicant wpa_supplicant wireless-tools iw rfkill wireless-regdb \
 	man-db manpages manpages-dev info groff-base doc-base \
 	bash-completion command-not-found \
 	systemd-coredump cron vim-tiny git
