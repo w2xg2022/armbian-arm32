@@ -77,3 +77,34 @@ fi
 rm -rf /usr/share/man/* /usr/share/doc/* 2>/dev/null || true
 
 echo "==> 精简完成"
+
+# ===== 第二轮精简：裁掉与本板无关的固件与数据 =====
+# armbian-firmware 装完约 523MB，其中 qcom(323MB)/ath10k/ath11k/ath12k/mediatek/intel 等
+# 都是手机/笔记本/新款路由的固件，RK3288 用不到；只留 RK3288 板载无线与常见 USB 网卡。
+FW_KEEP="rockchip rkwifi brcm rtlwifi rtl_nic"
+for d in /usr/lib/firmware/*; do
+	[ -e "$d" ] || continue
+	b="$(basename "$d")"
+	keep="no"
+	for k in $FW_KEEP; do [ "$b" = "$k" ] && keep="yes"; done
+	[ "$keep" = "yes" ] || rm -rf "$d"
+done
+find /usr/lib/firmware -maxdepth 1 -type f -delete 2>/dev/null || true
+
+# apt 索引 57MB：开机跑一次 apt update 就回来了，没必要打进镜像
+rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/* 2>/dev/null || true
+
+# 只留英文与中文语言包（原来 110 个语系，59MB）
+for loc in /usr/share/locale/*; do
+	[ -e "$loc" ] || continue
+	b="$(basename "$loc")"
+	case "$b" in
+		en|en_GB|zh|zh_TW|zh_CN|locale.alias) ;;
+		*) rm -rf "$loc" ;;
+	esac
+done
+
+rm -rf /usr/share/consolefonts/* 2>/dev/null || true
+rm -f /usr/lib/udev/hwdb.bin 2>/dev/null || true
+
+echo "==> 二轮精简完成"
