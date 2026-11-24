@@ -35,7 +35,7 @@ sudo env ALLOW_ROOT=yes ./compile.sh requirements
 ```bash
 echo "sudo密码" | sudo -S -p "" -v      # 15 分钟内有效
 ./compile.sh build BOARD=rk3288-digital-reflection BRANCH=current RELEASE=trixie \
-  BUILD_MINIMAL=yes BUILD_DESKTOP=no KERNEL_CONFIGURE=no \
+  BUILD_MINIMAL=yes BUILD_DESKTOP=no KERNEL_CONFIGURE=no KERNEL_BTF=no \
   NETWORKING_STACK=network-manager PREFER_DOCKER=no
 ```
 
@@ -46,6 +46,8 @@ echo "sudo密码" | sudo -S -p "" -v      # 15 分钟内有效
 - `NETWORKING_STACK=network-manager` 是刻意覆盖：`BUILD_MINIMAL=yes` 默认会切到
   `systemd-networkd`，那样 `nmtui` 就没了。带上这个参数才有 `NetworkManager` + `nmtui`/`nmcli`，
   代价是常驻内存多 15~20MB；纯有线、不想要 TUI 的话去掉它最瘦。
+- `KERNEL_BTF=no` 是给 8GB 以下内存的机器用的：框架会检查 RAM 是否够跑 BTF，不够就直接报
+  `Not enough RAM available ... for BTF build` 退出。复古游戏机不需要 BTF，关掉最省事。
 - `RELEASE=` 也可用 `bookworm`（Debian 12）、`noble`（Ubuntu 24.04，走 ports.ubuntu.com）。
 - 首次构建要拉内核源码（`git.kernel.org` 的 `linux-6.18.y`）、u-boot（`v2026.04`）和 rootfs 包，
   网速慢时常常几十分钟到一两小时；之后增量构建会复用 `cache/` 与 `output/`，中断后重跑同一条命令即可续上。
@@ -100,8 +102,30 @@ ps_mem -S | head -15                     # 谁还在吃内存
 
 ## u-boot
 
-沿用已经验证可启动的组合：`BOOTCONFIG="xt-q8l-v10-rk3288_defconfig"` + rockchip 原厂 ddrbin
-（`rk3288_ddr_400MHz_v1.08.bin` 代替 u-boot TPL，见板级配置里的 `post_family_config__uboot_config`）。
+本板用自己的 defconfig：`patch/u-boot/v2026.04/defconfig/rk3288-digital-reflection_defconfig`
+（内容就是上游 `xt-q8l-v10-rk3288_defconfig` 的 121 行，外加一行 `CONFIG_SPL_RAM=y`）。
+板级配置里的 `BOOTCONFIG` 指向它，还是用 rockchip 原厂 ddrbin
+（`rk3288_ddr_400MHz_v1.08.bin` 代替 u-boot TPL，见 `post_family_config__uboot_config`）。
+
+2026.04 上踩到两个坑，都已经在仓库里修好：
+
+1. **`CONFIG_SYS_SPI_U_BOOT_OFFS` 未定义导致 dts 编译失败**：
+   上游 `arch/arm/dts/rockchip-u-boot.dtsi` 无条件写 `offset = <CONFIG_SYS_SPI_U_BOOT_OFFS>;`，
+   而该符号在 `common/spl/Kconfig` 里依赖 `SPL_SPI_LOAD`/`SPL_SPI_SUNXI`。rk3288 各目标虽然
+   `select ROCKCHIP_SPI_IMAGE`，但都没有开 SPL SPI 载入 → 符号不存在 →
+   `Lexical error ... Unexpected 'CONFIG_SYS_SPI_U_BOOT_OFFS'`。
+   修法：`patch/u-boot/v2026.04/general-rockchip-guard-spi-u-boot-offset.patch` 把它用 `#ifdef` 包起来。
+2. **SPL 链接找不到 `dram_init` / `board_get_usable_ram_top`**：
+   2026.04 的 `arch/arm/mach-rockchip/spl.c` 在非 TPL 配置下会调这两个函数，但提供实现的
+   `sdram.c` 只有 `CONFIG_SPL_RAM=y` 时才编进 SPL。原 xt-q8l 配置没开 → 链接失败。
+   修法：自家 defconfig 加上 `CONFIG_SPL_RAM=y`（和上游 `evb-rk3288_defconfig` 一致）。
+
+只想验证 u-boot、不编整张镜像时：
+
+```bash
+./compile.sh uboot BOARD=rk3288-digital-reflection BRANCH=current KERNEL_CONFIGURE=no PREFER_DOCKER=no
+```
+
 如果确认本板是 DDR3，可以再试 `firefly-rk3288_defconfig`（TPL 路线），目前未验证。
 
 ## 已知问题 / 待验证
