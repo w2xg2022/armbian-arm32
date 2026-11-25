@@ -87,6 +87,27 @@ ps_mem -S | head -15                     # 谁还在吃内存
 
 > 注意：瘦身只在**镜像构建时**生效，已经刷好的卡不会自动变瘦，得重刷或手动照清单处理。
 
+### 体积：从 1348MiB 压到 580MiB
+
+第一版镜像 1348MiB，其中大头根本不是包，是数据文件。三刀下去变成 580MiB（rootfs 实占 397MiB，
+镜像内还留 63MB 余量，首次开机 `armbian-resize-filesystem` 会把分区扩到卡的实际容量）：
+
+| 砍的东西 | 省下 | 说明 |
+| --- | --- | --- |
+| `armbian-firmware` 里的无关固件 | ~488MB | 装完 523MB，其中 `qcom` 一家 323MB（骁龙手机/笔记本的 adsp/modem），还有 ath10k/ath11k/ath12k/mediatek/intel 等。只留 `rockchip`、`rkwifi`、`brcm`、`rtlwifi`、`rtl_nic`，共 33MB |
+| `/var/lib/apt/lists` | 57MB | apt 索引，开机 `apt update` 就回来；必须放在收尾阶段删，见下条 |
+| `/usr/share/locale` | ~55MB | 110 个语系只留 `en`/`en_GB`/`zh`/`zh_TW`/`zh_CN` |
+| `consolefonts`、`hwdb`、`perl` 的 pod、python 的 test/pycache、`X11/xkb`、man/doc | ~35MB | 纯文档/缓存，不影响运行 |
+
+两个坑值得记：
+
+1. 在 `customize-image.sh` 里删 `apt/lists` **没用**——框架随后会 `apt-get update` 又把索引生成回来
+   （日志里 `apt_lists_copy_from_host_to_image_and_update` 那一段）。所以另外做了一个收尾 extension
+   `userpatches/extensions/rk3288-slim-late.sh`，挂在 `post_post_debootstrap_tweaks` 上，在 `du` 量体积之前删掉。
+   板级配置里用 `enable_extension "rk3288-slim-late"` 启用（必须在 extension manager 初始化前调用）。
+2. 想固定镜像体积就用 `FIXED_IMAGE_SIZE=<MiB>`。但别贴着 rootfs 实占给：第一次试 `580` 时 rootfs 还有
+   455MiB，剩 4.3MB 空间，`mkimage` 写 `uInitrd` 直接 `No space left on device` 挂掉。留 15% 以上比较稳。
+
 
 ## 硬件与 Firefly-RK3288 的差异
 
@@ -133,7 +154,7 @@ ps_mem -S | head -15                     # 谁还在吃内存
 在 8 核 / 8GB 的 Ubuntu 24.04 虚拟机上用上面的命令跑通，全程 **48 分钟**，产出：
 
 ```
-Armbian-unofficial_26.11.0-trunk_Rk3288-digital-reflection_trixie_current_6.18.65_minimal.img   1348 MiB
+Armbian-unofficial_26.11.0-trunk_Rk3288-digital-reflection_trixie_current_6.18.65_minimal.img   580 MiB（rootfs 397MiB，余量 63MB）
 ```
 
 镜像内已核对：`sshd` 在、`nmtui` / `nmcli` 在、NetworkManager 启用、`/boot/dtb/rk3288-digital-reflection.dtb`
